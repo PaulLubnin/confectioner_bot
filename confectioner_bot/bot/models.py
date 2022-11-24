@@ -1,102 +1,125 @@
-from email.policy import default
-from operator import mod
 from django.db import models
-from datetime import datetime
 
-class Layers(models.Model):
+
+
+class Order(models.Model):
+    client = models.ForeignKey(
+        'Client',
+        verbose_name='клиент',
+        related_name='orders',
+        on_delete=models.CASCADE,
+     )
+    cakes = models.ManyToManyField(
+        'Cake',
+        verbose_name='торты',
+        related_name='orders',
+     )
+    comment = models.TextField(
+        'комментарий к заказу',
+        blank=True,
+     )
+    order_price = models.DecimalField(max_digits=19, verbose_name='Сумма заказа', decimal_places=2)
+    #    address = models.TextField()
+    order_time = models.DateTimeField(verbose_name='время создания', auto_now_add=True)
+    #    deadline = models.DateTimeField()
+    #    urgency = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f'{str(self.order_time)}'    
+
+
+class Client(models.Model):
+    fio = models.CharField('клиент', max_length=200)
+    phone = models.CharField('клиент', max_length=12)
+    address = models.TextField(
+        'Адрес квартиры',
+        help_text='ул. Подольских курсантов д.5 кв.4'
+     )
+
+    def __str__(self):
+        return self.fio    
+
+class Cake(models.Model):
+    title = models.CharField('название торта', max_length=200, blank=True)
+    description = models.TextField(
+        'описание торта',
+        blank=True,
+     )
+    picture = models.ImageField(
+        verbose_name='изображение торта',
+        blank=True,
+        null=True,
+     )
+    default = models.BooleanField('торт в ассортименте', default=False)
+    layers = models.ForeignKey(
+        'Layer',
+        verbose_name='слои',
+        related_name='cakes',
+        null=True,
+        on_delete=models.SET_NULL,
+     )
+    shape = models.ForeignKey(
+        'Shape',
+        verbose_name='форма',
+        related_name='cakes',
+        null=True,
+        on_delete=models.SET_NULL,
+     )
+    
+    toppings = models.ManyToManyField(
+        'Topping',
+        verbose_name='топинги',
+        related_name='cakes',
+     )
+    berries = models.ManyToManyField(
+        'Berry',
+        verbose_name='ягоды',
+        related_name='cakes',
+     )
+
+    def __str__(self):
+        return self.title    
+    
+class Layer(models.Model):
     quantity = models.IntegerField(verbose_name='Количество слоев')
     price = models.DecimalField(
-        max_digits=None, 
+        max_digits=19, 
         verbose_name='Цена', 
-        decimal_places=2
+        decimal_places=2,
         )
 
-class Shapes(models.Model):
+    def __str__(self):
+        return f'{str(self.quantity)}'    
+
+class Shape(models.Model):
     shape = models.CharField(verbose_name='Форма коржа', max_length=32)
     price = models.DecimalField(
-        max_digits=None, 
+        max_digits=19, 
         verbose_name='Цена', 
         decimal_places=2
         )
 
-class Toppings(models.Model):
-    topping = models.CharField(verbose_name='Топпинги', max_length=32)
+    def __str__(self):
+        return self.shape    
+
+class Topping(models.Model):
+    title = models.CharField(verbose_name='Топпинг', max_length=32)
     price = models.DecimalField(
-        max_digits=None, 
+        max_digits=19, 
         verbose_name='Цена', 
         decimal_places=2
         )
 
-class Berries(models.Model):
-    berry = models.CharField(verbose_name='Ягоды', max_length=32)
+    def __str__(self):
+        return self.title    
+
+class Berry(models.Model):
+    title = models.CharField(verbose_name='Ягода', max_length=32)
     price = models.DecimalField(
-        max_digits=None, 
+        max_digits=19, 
         verbose_name='Цена', 
         decimal_places=2
         )
 
-class Decorations(models.Model):
-    decoration = models.CharField(verbose_name='Декор', max_length=32)
-    price = models.DecimalField(
-        max_digits=None, 
-        verbose_name='Цена', 
-        decimal_places=2
-        )
-
-class Cakes(models.Model):
-    layers = models.ForeignKey(
-        Layers, 
-        verbose_name='Количество слоев', 
-        on_delete=models.CASCADE
-        )
-    shapes = models.ForeignKey(
-        Shapes, 
-        verbose_name='Форма коржа', 
-        on_delete=models.CASCADE
-        )
-    toppings = models.ForeignKey(
-        Toppings, 
-        verbose_name='Топпинги', 
-        on_delete=models.CASCADE
-        )
-    berries = models.ForeignKey(
-        Berries, 
-        verbose_name='Ягоды', 
-        null=True, 
-        blank=True, 
-        on_delete=models.CASCADE
-        )
-    decorations = models.ForeignKey(
-        Decorations, 
-        verbose_name='Декор', 
-        null=True, 
-        blank=True, 
-        on_delete=models.CASCADE
-        )
-    description = models.TextField(verbose_name='Описание торта')
-    picture = models.ImageField(verbose_name='Изображение торта')
-    default = models.BooleanField(default=False)
-    price = models.DecimalField(
-        max_digits=None,
-        verbose_name='Цена', 
-        decimal_places=2
-        )
-
-class Clients(models.Model):
-    name = models.CharField(max_length=32, verbose_name='Имя')
-    phone = models.CharField(max_length=32, verbose_name='Телефон')
-    address = models.TextField(verbose_name='Адрес')
-
-class Orders(models.Model):
-    client = models.ForeignKey(Clients, verbose_name='Клиент', on_delete=models.CASCADE)
-    comment = models.TextField(verbose_name='Комментарий к заказу')
-    order_price = models.DecimalField(max_digits=None, verbose_name='Сумма заказа', decimal_places=2)
-#    address = models.TextField()
-#    time = models.DateTimeField(default=datetime.now())
-#    deadline = models.DateTimeField()
-#    urgency = models.BooleanField(default=False)
-
-class OrderedCakes(models.Model):
-    order = models.ForeignKey(Orders, verbose_name='Заказ', on_delete=models.CASCADE)
-    cake = models.ForeignKey(Cakes, verbose_name='Торт', on_delete=models.CASCADE)
-    sign = models.TextField(verbose_name='Надпись на торте')
+    def __str__(self):
+        return self.title    
