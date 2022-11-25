@@ -5,7 +5,6 @@ from bot.models import Cake
 
 # меню
 CAKES, CUSTOM_CAKES, MAIN_MENU, ORDER_MENU, BUCKET_MENU, REGISTER, PAY = range(7)
-AGREEMENT = 98
 QUIT_MENU = 99
 # Выбор в главном меню
 CAKE, CUSTOM_CAKE = range(2)
@@ -134,7 +133,6 @@ def order(update: Update, context: CallbackContext) -> int:
         [
             InlineKeyboardButton("Регистрация", callback_data=str(REGISTER)),
             InlineKeyboardButton("Оплатить заказ", callback_data=str(PAY)),
-            InlineKeyboardButton("Согласие", callback_data=str(AGREEMENT)),
         ],
         [
             InlineKeyboardButton("Выйти", callback_data=str(QUIT_MENU)),
@@ -145,9 +143,12 @@ def order(update: Update, context: CallbackContext) -> int:
         bot.send_document(
             query.from_user.id,
             document=pd_file,
-            reply_markup=reply_markup,
-            caption="Вам необходимо зарегистрироваться и оплатить заказ.\nПри регистрации и/или оформлении заказа вы даете согласие на обработку персональных данных.\nСогласие приложено к сообщению."
         )           
+    bot.send_message(
+        query.from_user.id,
+        text="Вам необходимо зарегистрироваться и оплатить заказ.\nПри регистрации и/или оформлении заказа вы даете согласие на обработку персональных данных.\nСогласие приложено к предыдущему сообщению.",
+        reply_markup=reply_markup,
+    )
     return ORDER_MENU
 
 

@@ -11,7 +11,7 @@ from telegram.ext import (
 
 from bot.bot_handlers import (
     CAKES, CUSTOM_CAKES, MAIN_MENU, ORDER_MENU, BUCKET_MENU,
-    AGREEMENT, QUIT_MENU, CAKE, CUSTOM_CAKE, REGISTER, PAY,
+    QUIT_MENU, CAKE, CUSTOM_CAKE, REGISTER, PAY,
     ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN,
     start, start_over, end,
     cakes, custom_cakes, add_cake_to_order, register, pay, order,
@@ -55,7 +55,6 @@ class Command(BaseCommand):
                     CallbackQueryHandler(end, pattern='^' + str(QUIT_MENU) + '$'),
                     CallbackQueryHandler(register, pattern='^' + str(REGISTER) + '$'),
                     CallbackQueryHandler(pay, pattern='^' + str(PAY) + '$'),
-                    CallbackQueryHandler(order, pattern='^' + str(AGREEMENT) + '$'),
                 ],
                 REGISTER: [
                     CallbackQueryHandler(end, pattern='^' + str(QUIT_MENU) + '$'),
