@@ -30,7 +30,6 @@ ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN = range(10)
 def start(update: Update, context: CallbackContext) -> int:
     """Send message on `/start`."""
     user = update.message.from_user
-#    breakpoint()
     print(f"User {user.first_name} started the conversation.")
     keyboard = [
         [
@@ -82,7 +81,6 @@ def get_default_cakes():
 def cakes(update: Update, context: CallbackContext) -> int:
     """Show new choice of buttons"""
     cake_catalogue = get_default_cakes()
-
     query = update.callback_query
     query.answer()
     bot = query.bot
@@ -105,7 +103,6 @@ def cakes(update: Update, context: CallbackContext) -> int:
     bot.send_message(query.from_user.id, text="Популярные торты:")
 
     for key, value in cake_catalogue.items():
-#        breakpoint()
         bot.send_message(query.from_user.id, text=f"{key}. {value['description']}")
         bot.send_message(query.from_user.id, text=f"Цена: {str(value['price'])} руб.")
         bot.send_photo(query.from_user.id, photo=value['image'])            
@@ -149,39 +146,41 @@ def end(update: Update, context: CallbackContext) -> int:
     return ConversationHandler.END
 
 
-def cake_bot():
-    load_dotenv()
-    tg_token = os.getenv("TG_BOT_TOKEN")
-    updater = Updater(tg_token)
-    dispatcher = updater.dispatcher
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={
-            CAKES: [
-                CallbackQueryHandler(end, pattern='^' + str(QUIT_MENU) + '$'),
-                CallbackQueryHandler(start_over, pattern='^' + str(ONE) + '$'),
-                CallbackQueryHandler(start_over, pattern='^' + str(TWO) + '$'),
-                CallbackQueryHandler(start_over, pattern='^' + str(THREE) + '$'),
-                CallbackQueryHandler(start_over, pattern='^' + str(FOUR) + '$'),
-                CallbackQueryHandler(start_over, pattern='^' + str(FIVE) + '$'),
-            ],
-            CUSTOM_CAKES: [
-                CallbackQueryHandler(end, pattern='^' + str(QUIT_MENU) + '$'),
-                CallbackQueryHandler(start_over, pattern='^' + str(TWO) + '$'),
-                CallbackQueryHandler(start_over, pattern='^' + str(THREE) + '$'),
-            ],
-            MAIN_MENU: [
-                CallbackQueryHandler(end, pattern='^' + str(QUIT_MENU) + '$'),
-                CallbackQueryHandler(cakes, pattern='^' + str(CAKE) + '$'),
-                CallbackQueryHandler(custom_cakes, pattern='^' + str(CUSTOM_CAKE) + '$'),
-            ],
-        },
-        fallbacks=[CommandHandler('start', start)],
-    )
-    dispatcher.add_handler(conv_handler)
-    updater.start_polling()
-    updater.idle()
+class Command(BaseCommand):
+
+    def handle(self, *args, **options):
+        load_dotenv()
+        tg_token = os.getenv("TG_BOT_TOKEN")
+        updater = Updater(tg_token)
+        dispatcher = updater.dispatcher
+        conv_handler = ConversationHandler(
+            entry_points=[CommandHandler('start', start)],
+            states={
+                CAKES: [
+                    CallbackQueryHandler(end, pattern='^' + str(QUIT_MENU) + '$'),
+                    CallbackQueryHandler(start_over, pattern='^' + str(ONE) + '$'),
+                    CallbackQueryHandler(start_over, pattern='^' + str(TWO) + '$'),
+                    CallbackQueryHandler(start_over, pattern='^' + str(THREE) + '$'),
+                    CallbackQueryHandler(start_over, pattern='^' + str(FOUR) + '$'),
+                    CallbackQueryHandler(start_over, pattern='^' + str(FIVE) + '$'),
+                ],
+                CUSTOM_CAKES: [
+                    CallbackQueryHandler(end, pattern='^' + str(QUIT_MENU) + '$'),
+                    CallbackQueryHandler(start_over, pattern='^' + str(TWO) + '$'),
+                    CallbackQueryHandler(start_over, pattern='^' + str(THREE) + '$'),
+                ],
+                MAIN_MENU: [
+                    CallbackQueryHandler(end, pattern='^' + str(QUIT_MENU) + '$'),
+                    CallbackQueryHandler(cakes, pattern='^' + str(CAKE) + '$'),
+                    CallbackQueryHandler(custom_cakes, pattern='^' + str(CUSTOM_CAKE) + '$'),
+                ],
+            },
+            fallbacks=[CommandHandler('start', start)],
+        )
+        dispatcher.add_handler(conv_handler)
+        updater.start_polling()
+        updater.idle()
 
 
 if __name__ == "__main__":
-    cake_bot()
+    Command().handle()
