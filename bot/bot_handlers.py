@@ -15,6 +15,7 @@ ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN = range(10)
 def start(update: Update, context: CallbackContext) -> int:
     """Send message on `/start`."""
     user = update.message.from_user
+    context.chat_data['order'] = {'cakes': []}
     print(f"User {user.first_name} started the conversation.")
     keyboard = [
         [
@@ -50,14 +51,13 @@ def start_over(update: Update, context: CallbackContext) -> int:
 
 def get_default_cakes():
     default_cakes = {}
-    num = 1
-    for cake in Cake.objects.filter(default=True):
-        default_cakes[num] = {
+    for num, cake in enumerate(Cake.objects.filter(default=True)):
+        default_cakes[num+1] = {
             "title": cake.title,
             "price": cake.get_price(),
             "picture": cake.picture,
+            "cake_id": cake.id,
         }
-        num += 1
     return default_cakes
 
 
@@ -66,6 +66,7 @@ def cakes(update: Update, context: CallbackContext) -> int:
     cake_catalogue = get_default_cakes()
     query = update.callback_query
     query.answer()
+    context.chat_data['cakes'] = cake_catalogue
     bot = query.bot
     keyboard = [
         [
@@ -101,11 +102,26 @@ def cakes(update: Update, context: CallbackContext) -> int:
     return CAKES
 
 
+def get_bucket_text(order):
+    bucket_text = ''
+    bucket_total = 0
+    for num, item in enumerate(order['cakes']):
+        bucket_text += f"{num+1}. Торт '{item['title']}'. Цена: {item['price']} руб.\n"
+        bucket_total += item['price']
+    bucket_text += f"Итого к оплате: {bucket_total} руб."
+    return bucket_text
+
+
 def add_cake_to_order(update: Update, context: CallbackContext) -> int:
     """Show new choice of buttons"""
     query = update.callback_query
     query.answer()
     bot = query.bot
+    order = context.chat_data['order']
+    cakes = context.chat_data['cakes']
+    selected_cake = cakes[int(query.data) + 1]
+    order['cakes'].append(selected_cake)
+    bucket_text = get_bucket_text(order)
     keyboard = [
         [
             InlineKeyboardButton("Добавить торт", callback_data=str(MAIN_MENU)),
@@ -118,7 +134,7 @@ def add_cake_to_order(update: Update, context: CallbackContext) -> int:
     reply_markup = InlineKeyboardMarkup(keyboard)
     bot.send_message(
         query.from_user.id,
-        text="Сейчас в вашей корзине: ...",
+        text=f"Торт '{selected_cake['title']}' добавлен в корзину.\nСейчас в вашей корзине:\n{bucket_text}",
         reply_markup=reply_markup
     )
     return BUCKET_MENU
@@ -213,6 +229,7 @@ def end(update: Update, context: CallbackContext) -> int:
     """Returns `ConversationHandler.END`, which tells the
     ConversationHandler that the conversation is over.
     """
+    context.chat_data['order'] = {}
     query = update.callback_query
     query.answer()
     query.edit_message_text(text="До встречи!")
