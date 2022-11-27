@@ -7,7 +7,8 @@ class Order(models.Model):
         'Client',
         verbose_name='клиент',
         related_name='orders',
-        on_delete=models.CASCADE,
+        null=True,
+        on_delete=models.SET_NULL,
      )
     cakes = models.ManyToManyField(
         'Cake',

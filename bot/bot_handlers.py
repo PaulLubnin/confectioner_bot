@@ -1,7 +1,7 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackContext, ConversationHandler
 
-from bot.models import Cake
+from bot.models import Cake, Order
 
 # меню
 CAKES, CUSTOM_CAKES, MAIN_MENU, ORDER_MENU, BUCKET_MENU, REGISTER, PAY = range(7)
@@ -109,7 +109,7 @@ def get_bucket_text(order):
         bucket_text += f"{num+1}. Торт '{item['title']}'. Цена: {item['price']} руб.\n"
         bucket_total += item['price']
     bucket_text += f"Итого к оплате: {bucket_total} руб."
-    return bucket_text
+    return bucket_text, bucket_total
 
 
 def add_cake_to_order(update: Update, context: CallbackContext) -> int:
@@ -121,7 +121,8 @@ def add_cake_to_order(update: Update, context: CallbackContext) -> int:
     cakes = context.chat_data['cakes']
     selected_cake = cakes[int(query.data) + 1]
     order['cakes'].append(selected_cake)
-    bucket_text = get_bucket_text(order)
+    bucket_text, bucket_total = get_bucket_text(order)
+    order['total'] = bucket_total
     keyboard = [
         [
             InlineKeyboardButton("Добавить торт", callback_data=str(MAIN_MENU)),
@@ -140,11 +141,30 @@ def add_cake_to_order(update: Update, context: CallbackContext) -> int:
     return BUCKET_MENU
 
 
+def save_order(order):
+    new_order = Order(client=None, order_price=order['total'])
+    new_order.save()
+    for cake in order['cakes']:
+        cake_obj = Cake.objects.get(pk=cake['cake_id'])
+        new_order.cakes.add(cake_obj)
+    new_order.save()
+    return new_order.id
+
+
+def delete_order(order):
+    order_to_del = Order.objects.get(pk=order['id'])
+    '''удаляем заказ'''
+    order_to_del.delete()
+
+
 def order(update: Update, context: CallbackContext) -> int:
     """Show new choice of buttons"""
     query = update.callback_query
     query.answer()
     bot = query.bot
+    order = context.chat_data['order']
+    if order['cakes']:
+        order['id'] = save_order(order)
     keyboard = [
         [
             InlineKeyboardButton("Регистрация", callback_data=str(REGISTER)),
@@ -229,7 +249,9 @@ def end(update: Update, context: CallbackContext) -> int:
     """Returns `ConversationHandler.END`, which tells the
     ConversationHandler that the conversation is over.
     """
-    context.chat_data['order'] = {}
+    order = context.chat_data['order']
+    delete_order(order)
+    order = {}
     query = update.callback_query
     query.answer()
     query.edit_message_text(text="До встречи!")
