@@ -2,15 +2,35 @@ from django.db import models
 
 
 
+class OrderedCake(models.Model):
+    order = models.ForeignKey(
+        'Order',
+        related_name='ordered_cakes',
+        verbose_name='заказы',
+        null=True,
+        on_delete=models.SET_NULL,
+    )
+    cake = models.ForeignKey(
+        'Cake',
+        related_name='ordered_cakes',
+        verbose_name='торты',
+        null=True,
+        on_delete=models.SET_NULL,
+    )
+    quantity = models.IntegerField(verbose_name='Количество тортов', default=1)
+
+
 class Order(models.Model):
     client = models.ForeignKey(
         'Client',
         verbose_name='клиент',
         related_name='orders',
-        on_delete=models.CASCADE,
+        null=True,
+        on_delete=models.SET_NULL,
      )
     cakes = models.ManyToManyField(
         'Cake',
+        through='OrderedCake',
         verbose_name='торты',
         related_name='orders',
      )

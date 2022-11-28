@@ -1,11 +1,12 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackContext, ConversationHandler
 
-from bot.models import Cake
+from bot.models import Cake, Order, OrderedCake
 
 # меню
 CAKES, CUSTOM_CAKES, MAIN_MENU, ORDER_MENU, BUCKET_MENU, REGISTER, PAY = range(7)
 QUIT_MENU = 99
+AGREEMENT = 98
 # Выбор в главном меню
 CAKE, CUSTOM_CAKE = range(2)
 # Кнопки с нумерацией
@@ -15,6 +16,7 @@ ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN = range(10)
 def start(update: Update, context: CallbackContext) -> int:
     """Send message on `/start`."""
     user = update.message.from_user
+    context.chat_data['order'] = {'cakes': []}
     print(f"User {user.first_name} started the conversation.")
     keyboard = [
         [
@@ -50,14 +52,13 @@ def start_over(update: Update, context: CallbackContext) -> int:
 
 def get_default_cakes():
     default_cakes = {}
-    num = 1
-    for cake in Cake.objects.filter(default=True):
-        default_cakes[num] = {
+    for num, cake in enumerate(Cake.objects.filter(default=True)):
+        default_cakes[num+1] = {
             "title": cake.title,
             "price": cake.get_price(),
             "picture": cake.picture,
+            "cake_id": cake.id,
         }
-        num += 1
     return default_cakes
 
 
@@ -66,6 +67,7 @@ def cakes(update: Update, context: CallbackContext) -> int:
     cake_catalogue = get_default_cakes()
     query = update.callback_query
     query.answer()
+    context.chat_data['cakes'] = cake_catalogue
     bot = query.bot
     keyboard = [
         [
@@ -101,11 +103,27 @@ def cakes(update: Update, context: CallbackContext) -> int:
     return CAKES
 
 
+def get_bucket_text(order):
+    bucket_text = ''
+    bucket_total = 0
+    for num, item in enumerate(order['cakes']):
+        bucket_text += f"{num+1}. Торт '{item['title']}'. Цена: {item['price']} руб.\n"
+        bucket_total += item['price']
+    bucket_text += f"Итого к оплате: {bucket_total} руб."
+    return bucket_text, bucket_total
+
+
 def add_cake_to_order(update: Update, context: CallbackContext) -> int:
     """Show new choice of buttons"""
     query = update.callback_query
     query.answer()
     bot = query.bot
+    order = context.chat_data['order']
+    cakes = context.chat_data['cakes']
+    selected_cake = cakes[int(query.data) + 1]
+    order['cakes'].append(selected_cake)
+    bucket_text, bucket_total = get_bucket_text(order)
+    order['total'] = bucket_total
     keyboard = [
         [
             InlineKeyboardButton("Добавить торт", callback_data=str(MAIN_MENU)),
@@ -118,10 +136,35 @@ def add_cake_to_order(update: Update, context: CallbackContext) -> int:
     reply_markup = InlineKeyboardMarkup(keyboard)
     bot.send_message(
         query.from_user.id,
-        text="Сейчас в вашей корзине: ...",
+        text=f"Торт '{selected_cake['title']}' добавлен в корзину.\nСейчас в вашей корзине:\n{bucket_text}",
         reply_markup=reply_markup
     )
     return BUCKET_MENU
+
+
+def save_order(order):
+    new_order = Order(client=None, order_price=order['total'])
+    new_order.save()
+    for cake in order['cakes']:
+        cake_obj = Cake.objects.get(pk=cake['cake_id'])
+        if OrderedCake.objects.filter(cake=cake_obj, order=new_order):
+            print('cake is find')
+            ordered_cake = OrderedCake.objects.filter(cake=cake_obj, order=new_order)[0]
+            ordered_cake.quantity += 1
+            ordered_cake.save()
+        else:
+            new_order.cakes.add(cake_obj)
+    new_order.save()
+    return new_order.id
+
+
+def delete_order(order):
+    order_to_del = Order.objects.get(pk=order['id'])
+    '''удаляем торты с заказа'''
+    for ordered_cake in OrderedCake.objects.filter(order_id=order['id']):
+        ordered_cake.delete()
+    '''удаляем заказ'''
+    order_to_del.delete()
 
 
 def order(update: Update, context: CallbackContext) -> int:
@@ -129,10 +172,36 @@ def order(update: Update, context: CallbackContext) -> int:
     query = update.callback_query
     query.answer()
     bot = query.bot
+    order = context.chat_data['order']
+    if order['cakes']:
+        order['id'] = save_order(order)
     keyboard = [
         [
             InlineKeyboardButton("Регистрация", callback_data=str(REGISTER)),
             InlineKeyboardButton("Оплатить заказ", callback_data=str(PAY)),
+        ],
+        [
+            InlineKeyboardButton("Выйти", callback_data=str(QUIT_MENU)),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    bot.send_message(
+        query.from_user.id,
+        text="Вам необходимо зарегистрироваться и оплатить заказ.",
+        reply_markup=reply_markup,
+    )
+    return ORDER_MENU
+
+
+def agreement(update: Update, context: CallbackContext) -> int:
+    """Show new choice of buttons"""
+    query = update.callback_query
+    query.answer()
+    bot = query.bot
+    keyboard = [
+        [
+            InlineKeyboardButton("Согласиться и продолжить оформление", callback_data=str(ORDER_MENU)),
+            InlineKeyboardButton("Вернуться в главное меню", callback_data=str(MAIN_MENU)),
         ],
         [
             InlineKeyboardButton("Выйти", callback_data=str(QUIT_MENU)),
@@ -146,10 +215,10 @@ def order(update: Update, context: CallbackContext) -> int:
         )           
     bot.send_message(
         query.from_user.id,
-        text="Вам необходимо зарегистрироваться и оплатить заказ.\nПри регистрации и/или оформлении заказа вы даете согласие на обработку персональных данных.\nСогласие приложено к предыдущему сообщению.",
+        text="Продолжая оформлять заказ вы даете согласие на обработку персональных данных.\nСогласие приложено к предыдущему сообщению.",
         reply_markup=reply_markup,
     )
-    return ORDER_MENU
+    return AGREEMENT
 
 
 def custom_cakes(update: Update, context: CallbackContext) -> int:
@@ -209,10 +278,25 @@ def pay(update: Update, context: CallbackContext) -> int:
     return PAY
 
 
+def done(update: Update, context: CallbackContext) -> int:
+    """Returns `ConversationHandler.END`, which tells the
+    ConversationHandler that the conversation is over.
+    """
+    order = context.chat_data['order']
+    order = {}
+    query = update.callback_query
+    query.answer()
+    query.edit_message_text(text="Спасибо за заказ!")
+    return ConversationHandler.END
+
+
 def end(update: Update, context: CallbackContext) -> int:
     """Returns `ConversationHandler.END`, which tells the
     ConversationHandler that the conversation is over.
     """
+    order = context.chat_data['order']
+    delete_order(order)
+    order = {}
     query = update.callback_query
     query.answer()
     query.edit_message_text(text="До встречи!")
