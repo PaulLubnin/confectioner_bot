@@ -1,11 +1,12 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackContext, ConversationHandler
 
-from bot.models import Cake, Order
+from bot.models import Cake, Order, OrderedCake
 
 # меню
 CAKES, CUSTOM_CAKES, MAIN_MENU, ORDER_MENU, BUCKET_MENU, REGISTER, PAY = range(7)
 QUIT_MENU = 99
+AGREEMENT = 98
 # Выбор в главном меню
 CAKE, CUSTOM_CAKE = range(2)
 # Кнопки с нумерацией
@@ -146,13 +147,22 @@ def save_order(order):
     new_order.save()
     for cake in order['cakes']:
         cake_obj = Cake.objects.get(pk=cake['cake_id'])
-        new_order.cakes.add(cake_obj)
+        if OrderedCake.objects.filter(cake=cake_obj, order=new_order):
+            print('cake is find')
+            ordered_cake = OrderedCake.objects.filter(cake=cake_obj, order=new_order)[0]
+            ordered_cake.quantity += 1
+            ordered_cake.save()
+        else:
+            new_order.cakes.add(cake_obj)
     new_order.save()
     return new_order.id
 
 
 def delete_order(order):
     order_to_del = Order.objects.get(pk=order['id'])
+    '''удаляем торты с заказа'''
+    for ordered_cake in OrderedCake.objects.filter(order_id=order['id']):
+        ordered_cake.delete()
     '''удаляем заказ'''
     order_to_del.delete()
 
@@ -175,6 +185,29 @@ def order(update: Update, context: CallbackContext) -> int:
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    bot.send_message(
+        query.from_user.id,
+        text="Вам необходимо зарегистрироваться и оплатить заказ.",
+        reply_markup=reply_markup,
+    )
+    return ORDER_MENU
+
+
+def agreement(update: Update, context: CallbackContext) -> int:
+    """Show new choice of buttons"""
+    query = update.callback_query
+    query.answer()
+    bot = query.bot
+    keyboard = [
+        [
+            InlineKeyboardButton("Согласиться и продолжить оформление", callback_data=str(ORDER_MENU)),
+            InlineKeyboardButton("Вернуться в главное меню", callback_data=str(MAIN_MENU)),
+        ],
+        [
+            InlineKeyboardButton("Выйти", callback_data=str(QUIT_MENU)),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     with open("./confectioner_bot/media/AgreementPD.pdf", "rb") as pd_file:
         bot.send_document(
             query.from_user.id,
@@ -182,10 +215,10 @@ def order(update: Update, context: CallbackContext) -> int:
         )           
     bot.send_message(
         query.from_user.id,
-        text="Вам необходимо зарегистрироваться и оплатить заказ.\nПри регистрации и/или оформлении заказа вы даете согласие на обработку персональных данных.\nСогласие приложено к предыдущему сообщению.",
+        text="Продолжая оформлять заказ вы даете согласие на обработку персональных данных.\nСогласие приложено к предыдущему сообщению.",
         reply_markup=reply_markup,
     )
-    return ORDER_MENU
+    return AGREEMENT
 
 
 def custom_cakes(update: Update, context: CallbackContext) -> int:
@@ -243,6 +276,18 @@ def pay(update: Update, context: CallbackContext) -> int:
         text="Раздел в разработке, вернитесь в главное меню.", reply_markup=reply_markup
     )
     return PAY
+
+
+def done(update: Update, context: CallbackContext) -> int:
+    """Returns `ConversationHandler.END`, which tells the
+    ConversationHandler that the conversation is over.
+    """
+    order = context.chat_data['order']
+    order = {}
+    query = update.callback_query
+    query.answer()
+    query.edit_message_text(text="Спасибо за заказ!")
+    return ConversationHandler.END
 
 
 def end(update: Update, context: CallbackContext) -> int:

@@ -1,7 +1,12 @@
 from django.contrib import admin
 
-from .models import Order, Client, Cake, Layer, Shape, Topping, Berry
+from .models import Order, Client, Cake, Layer, Shape, Topping, Berry, OrderedCake
 
+
+@admin.register(OrderedCake)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ('order',)
+    list_filter = ('order',)
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
